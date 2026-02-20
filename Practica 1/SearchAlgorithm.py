@@ -248,7 +248,7 @@ def distance_to_stations(coord, map):
     for station_id, station in map.stations.items():
         distances[station_id] = euclidean_dist(coord, [station["x"], station["y"]])
 
-    distances = dict(sorted(distances.items(), key=lambda item: (item[0], item[1]))) #sorts dict by key, and then by value
+    distances = dict(sorted(distances.items(), key=lambda item: (item[1], item[0]))) #sorts dict by value, and then by key
     return distances
     
 def Astar(origin_id, destination_id, map, type_preference=0):
