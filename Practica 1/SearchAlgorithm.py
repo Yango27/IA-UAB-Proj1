@@ -25,8 +25,11 @@ def expand(path, map):
             path_list (list): List of paths that are connected to the given path.
     """
     path_list = []
-    for conn in map.connections[path.last]:
-        path_list.append(Path(path.route + [conn]))
+    for next_station in map.connections[path.last]:
+        cpy = copy.deepcopy(path)
+        cpy.add_route(next_station)
+        path_list.append(cpy)
+    
     return path_list
 
 
@@ -135,8 +138,24 @@ def calculate_cost(expand_paths, map, type_preference=0):
             Returns:
                 expand_paths (LIST of Paths): Expanded path with updated cost
     """
-    pass
-
+    if type_preference == 0:
+        for path in expand_paths:
+            path.update_g(1)
+    elif type_preference == 1:
+        for path in expand_paths:
+            path.update_g(map.connections[path.penultimate][path.last])
+    elif type_preference == 2:
+        for path in expand_paths:
+            if map.stations[path.penultimate]["line"] != map.stations[path.last]["line"]:
+                velocity = 0
+            else:
+                velocity = map.stations[path.penultimate]["velocity"]
+            path.update_g(map.connections[path.penultimate][path.last]*velocity)
+    elif type_preference == 3:
+       for path in expand_paths:
+            if map.stations[path.penultimate]["line"] != map.stations[path.last]["line"]:
+                path.update_g(1)
+    return expand_paths
 
 def insert_cost(expand_paths, list_of_path):
     """
@@ -148,7 +167,10 @@ def insert_cost(expand_paths, list_of_path):
            Returns:
                list_of_path (LIST of Path Class): List of Paths where expanded_path is inserted according to cost
     """
-    pass
+    for epath in expand_paths:
+        list_of_path.append(epath)
+        list_of_path.sort(key=lambda p: (p.g, len(p.route)))
+    return list_of_path
 
 
 def uniform_cost_search(origin_id, destination_id, map, type_preference=0):
@@ -167,7 +189,18 @@ def uniform_cost_search(origin_id, destination_id, map, type_preference=0):
         Returns:
             list_of_path[0] (Path Class): The route that goes from origin_id to destination_id
     """
-    pass
+    queue = [Path(origin_id)]
+    while queue and queue[0].last != destination_id:
+        C = queue.pop(0)
+        E = expand(C, map)
+        E = remove_cycles(E)
+        E = calculate_cost(E, map, type_preference)
+        queue = insert_cost(E, queue)
+    if queue:
+        return queue[0]
+    else:
+        return "Non-Existent Path"
+    
 
 
 def calculate_heuristics(expand_paths, map, destination_id, type_preference=0):
@@ -188,8 +221,31 @@ def calculate_heuristics(expand_paths, map, destination_id, type_preference=0):
         Returns:
             expand_paths (LIST of Path Class): Expanded paths with updated heuristics
     """
-    pass
-
+    if type_preference == 0:
+        for path in expand_paths:
+            if path.last != destination_id:
+                path.update_h(1)
+            else:
+                path.update_h(0)
+    elif type_preference == 1:
+        for path in expand_paths:
+            last = map.stations[path.last]
+            destination = map.stations[destination_id]
+            distance = euclidean_dist([last["x"], last["y"]], [destination["x"], destination["y"]])
+            path.update_h(distance/max(map.velocity.values()))
+    elif type_preference == 2:
+        for path in expand_paths:
+            last = map.stations[path.last]
+            destination = map.stations[destination_id]
+            distance = euclidean_dist([last["x"], last["y"]], [destination["x"], destination["y"]])
+            path.update_h(distance)
+    elif type_preference == 3:
+        for path in expand_paths:
+            if map.stations[path.last]["line"] == map.stations[destination_id]["line"]:
+                path.update_h(0)
+            else:
+                path.update_h(1)
+    return expand_paths
 
 def update_f(expand_paths):
     """
@@ -200,7 +256,9 @@ def update_f(expand_paths):
          Returns:
              expand_paths (LIST of Path Class): Expanded paths with updated costs
     """
-    pass
+    for path in expand_paths:
+        path.update_f()
+    return expand_paths
 
 
 def remove_redundant_paths(expand_paths, list_of_path, visited_stations_cost):
@@ -217,8 +275,21 @@ def remove_redundant_paths(expand_paths, list_of_path, visited_stations_cost):
              list_of_path (LIST of Path Class): list_of_path without redundant paths
              visited_stations_cost (dict): Updated visited stations cost
     """
-    pass
-
+    remove_e = []
+    remove_l = []
+    for i, path in enumerate(expand_paths):
+        if path.last in visited_stations_cost.keys():
+            if visited_stations_cost[path.last] <= path.g:
+                remove_e.append(i)
+            else:
+                visited_stations_cost[path.last] = path.g
+                for j, lists in enumerate(list_of_path):
+                    if path.last in lists.route:
+                        remove_l.append(j)
+        else:
+            visited_stations_cost[path.last] = path.g
+    
+    return [path for i, path in enumerate(expand_paths) if i not in remove_e], [path for i, path in enumerate(list_of_path) if i not in remove_l], visited_stations_cost
 
 def insert_cost_f(expand_paths, list_of_path):
     """
@@ -230,7 +301,10 @@ def insert_cost_f(expand_paths, list_of_path):
            Returns:
                list_of_path (LIST of Path Class): List of Paths where expanded_path is inserted according to f
     """
-    pass
+    for epath in expand_paths:
+        list_of_path.append(epath)
+        list_of_path.sort(key=lambda p: (p.f, len(p.route)))
+    return list_of_path
 
 
 def distance_to_stations(coord, map):
@@ -267,7 +341,21 @@ def Astar(origin_id, destination_id, map, type_preference=0):
         Returns:
             list_of_path[0] (Path Class): The route that goes from origin_id to destination_id
     """
-    pass
+    queue = [Path(origin_id)]
+    partialCost = {}
+    while queue and queue[0].last != destination_id:
+        C = queue.pop(0)
+        E = expand(C, map)
+        E = remove_cycles(E)
+        E = calculate_cost(E, map, type_preference)
+        E = calculate_heuristics(E, map, destination_id, type_preference)
+        E = update_f(E)
+        E, queue, partialCost = remove_redundant_paths(E, queue, partialCost)
+        queue = insert_cost_f(E, queue)
+    if queue:
+        return queue[0]
+    else:
+        return "Non-Existent Path"
 
 
 def Astar_improved(origin_coord, destination_coord, map):
