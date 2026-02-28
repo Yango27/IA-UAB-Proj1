@@ -370,4 +370,17 @@ def Astar_improved(origin_coord, destination_coord, map):
         Returns:
             list_of_path[0] (Path Class): The route that goes from origin_coord to destination_coord
     """
-    pass
+    newMap = copy.deepcopy(map)
+    newMap.add_station(0, "Origin", 0, origin_coord[0], origin_coord[1])
+    newMap.add_station(-1, "Destination", 0, destination_coord[0], destination_coord[1])
+    originDistance = distance_to_stations(origin_coord, newMap)
+    destinationDistance = distance_to_stations(destination_coord, newMap)
+    newMap.connections[0] = {}
+    for d in originDistance:
+        newMap.connections[0][d] = originDistance[d]/5
+    for d in destinationDistance:
+        if d != -1:
+            newMap.connections[d][-1] = destinationDistance[d]/5
+
+    return Astar(0, -1, newMap, 1)
+    
